@@ -1,8 +1,6 @@
 ﻿# cookie和UserAgent变量
-param (
-    [String] $chromeCookies,
-    [String] $userAgent
-)
+$chromeCookies = ''
+$userAgent = ''
 
 $uri = "https://ecchi.iwara.tv/subscriptions"
 
