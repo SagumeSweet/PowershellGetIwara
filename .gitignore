@@ -1,1 +1,4 @@
 *.code-workspaces
+*.txt
+*.json
+*.code-workspace
