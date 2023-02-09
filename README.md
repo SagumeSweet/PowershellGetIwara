@@ -1,11 +1,11 @@
-# 通过powershell批量下载iwara(R18)订阅用户的视频
+# 通过powershell下载iwara(R18)视频
 
 ## 使用方法  
 
 + 本分支使用`Start-BitsTransfer`下载，也可以换成`Invoke-Webrequest`,不用额外装下载器
 + 支持从单个视频，用户，订阅里下载，不支持观看列表下载
-+ `powershell -File *.ps1 -CHROME_COOKIES cookie -uri URL -OUTPUT outputDic`  
-直接在脚本里设置变量也可,useragent直接在脚本里设置，反正也不改
++ `powershell -File *.ps1 -CHROME_COOKIES cookie -uri URL -OUTPUT output Dic`  
+直接在脚本里设置变量也可，output就是输出的文件夹,useragent直接在脚本里设置，反正也不改
 + cookie和useragent从浏览器直接复制即可  
 + 下载到作者名字文件夹下 `output\username\video`
 + 最好别和yt-dlp混用，因为下载的文件名不一样，到时候一堆重复的
