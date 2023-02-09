@@ -1,4 +1,5 @@
-﻿param (
+﻿[CmdletBinding()]
+param (
     [String] $CHROME_COOKIES,
     [String] $uri,
     [String] $OUTPUT
@@ -16,11 +17,11 @@ if ($OUTPUT[-1] -ne "\") {
 
 
 function getWebPage {
-    param (
+    [CmdletBinding()]param (
         [String] $chromeCookies,
         [String] $uri
     )
-
+    Write-Host "INFO:开始使用cookie获取网页"
     $request = Invoke-WebRequest -Uri $uri -SessionVariable "session" -UserAgent $USER_AGENT
     $chomeCookiesList = $chromeCookies -split "; "
     foreach ($chormeCookie in $chomeCookiesList) {
@@ -29,12 +30,12 @@ function getWebPage {
         $session.Cookies.Add($uri, $cookieClass)
     }
     $request = Invoke-WebRequest -Uri $uri -WebSession $session -UserAgent $USER_AGENT
-    
+    Write-Host "INFO:使用cookie获取网页结束"
     return $request
 }
 
 function downloadAllPageVideos {
-    Param (
+    [CmdletBinding()]Param (
         [String] $chromeCookies,
         [String] $type,
         [System.DateTime] $lastTime,
@@ -42,6 +43,7 @@ function downloadAllPageVideos {
         $request
     )
 
+    Write-Host "INFO:开始下载单页全部视频"
     $videoArray = @()
     foreach ($link in $request.Links.href) {
         if (($link -like '/videos/*') -and ($link -notin $videoArray)) {
@@ -49,17 +51,18 @@ function downloadAllPageVideos {
             Write-Host $link
             $downloadError = downloadVideo -uri $link -chromeCookies $chromeCookies -type $type -lastDate $lastTime -output $output
             if ($downloadError -eq 3) {
+                Write-Host "INFO:下载单页全部视频结束"
                 return 1
             }
             # yt-dlp命令
             # & '.\yt-dlp.exe' --config-location '.\local.conf' -P '.' -f "Source" --dateafter 20221025 $videoURL
         }
     }
-    return "INFO:Download all page videos function finished"
+    return "INFO:下载单页全部视频结束"
 }
 
 function getUriParts {
-    Param (
+    [CmdletBinding()]Param (
         [String] $uri
     )
     $parts = $uri.split('/')
@@ -67,7 +70,7 @@ function getUriParts {
 }
 
 function infoRegex {
-    param (
+    [CmdletBinding()]param (
         [String] $inputStr,
         [String] $regexStr
     )
@@ -77,7 +80,7 @@ function infoRegex {
 }
 
 function getDateFromString {
-    Param (
+    [CmdletBinding()]Param (
         [String] $dateStr
     )
     $date = Get-Date -Date $dateStr
@@ -91,29 +94,33 @@ function getLastDate {
 }
 
 function getVideoinfo {
-    Param (
+    [CmdletBinding()]Param (
         [String] $chromeCookies,
         [String] $uri
     )
-
+    Write-Host "INFO:开始获取视频信息"
     if ($uri[0] -ne "h") {
         $uri = $IWARA_HOME + $uri
     }
     $request = getWebPage -uri $uri -chromeCookies $chromeCookies
     $content = $request.Content
     if (!($content -notmatch "<h1>Private video</h1>")) {
-        return 0
+        return 1
     }
     $allInfo = infoRegex -inputStr $content -regexStr '<h1 class="title">(.|\n)*?作成者:.+'
+    if (!($allInfo)) {
+        return 2
+    }
     $userName = infoRegex -inputStr $allInfo -regexStr '(?<=class="username">).*(?=<\/a>)'
     $title = infoRegex -inputStr $allInfo -regexStr '(?<=<h1 class="title">).*(?=<\/h1>)'
     $dateStr = infoRegex -inputStr $allInfo -regexStr '(?<=作成日:).*(?= )'
     $date = getDateFromString -dateStr $dateStr
+    Write-Host "INFO:获取视频信息结束"
     return @{"title" = $title; "userName" = $userName; "date" = $date}
 }
 
 function stringToFileName {
-    param (
+    [CmdletBinding()]param (
         [String] $str
     )
     $result = $str -replace "/", ""
@@ -128,8 +135,28 @@ function stringToFileName {
     return $result
 }
 
+function getRequest {
+    [CmdletBinding()]param (
+        [String] $uri,
+        $session
+    )
+    Write-Host "INFO:开始获取网页"
+    for ($i = 0; $i -lt 3;i++) {
+        try {
+            $request = Invoke-WebRequest -Uri $uri -UserAgent $USER_AGENT
+        } catch {
+            Write-Host "ERROR:获取网页失败，正在重试（"($i + 1)"/3)"
+            continue
+        }
+        Write-Host "INFO:获取网页结束"
+        return $request
+    }
+    Write-Host "ERROR:获取网页失败"
+    return 1
+}
+
 function downloadVideo {
-    Param (
+    [CmdletBinding()]Param (
         [String] $uri,
         [String] $chromeCookies,
         [System.DateTime] $lastDate,
@@ -137,25 +164,34 @@ function downloadVideo {
         [String] $output
     )
 
+    Write-Host "INFO:开始下载视频"
     $uriParts = getUriParts -uri $uri
     $videoUri = "https://ecchi.iwara.tv/videos/"
     if ($uriParts -contains "videos") {
         $videoUri += $uriParts[-1]
     } else {
         Write-Host "ERROR:Not a video"
-        return 1
+        return "INFO:下载视频结束"
     }
     Write-Host $videoUri
     $info = getVideoinfo -uri $uri -chromeCookies $chromeCookies
-    if ($info -eq 0) {
+    if ($info -eq 1) {
         Write-Host "ERROR:Private video"
-        return 2
-    } elseif (([System.DateTime]::Compare($info["date"], $lastDate) -lt 0) -and ($type -eq "Subscriptions")) {
-        Write-Host "ERROR:Date is earlier than last time"
-        return 3
+        return "INFO:下载视频结束"
+    } elseif ($info -eq 2) {
+        Write-Host "ERROR:页面无内容"
+        return "INFO:下载视频结束"
+    } elseif (($type -eq "Subscriptions") -and ([System.DateTime]::Compare($info["date"], $lastDate) -lt 0)) {
+        Write-Host "ERROR:日期比规定日期早"
+        return "INFO:下载视频结束"
     }
     $apiURI = "https://ecchi.iwara.tv/api/video/" + $uriParts[-1]
-    $request = Invoke-WebRequest -Uri $apiURI -UserAgent $USER_AGENT
+    Write-Host "INFO:开始获取api网页"
+    $request = getRequest -uri $apiURI
+    if ($request -eq 1) {
+        Write-Host "ERROR:获取api页面失败"
+        return "INFO:下载视频结束"
+    }
     $jsonArray = (ConvertFrom-Json -InputObject $request.Content)
     $downloadURL = "https:"
     $ext = "."
@@ -167,27 +203,28 @@ function downloadVideo {
         }
     }
     # 输出到作者名文件夹
+    Write-Host $info["title"]
     $folderName = stringToFileName -str $info["userName"]
     $fileName = stringToFileName -str $info["title"]
     $outputFile = $output + $folderName + "\" + $fileName + $ext
     $outputFolder = $output + $folderName + "\"
     if (!(Test-Path -Path $outputFolder)) {
-        Write-Host "ERROE:Path not exitst"
+        Write-Host "INFO:文件夹未创建，正在创建"
         New-Item -Path $output -Name $folderName -ItemType Directory
-        Write-Host "INFO:Make dir end"
+        Write-Host "INFO:文件夹创建完成"
     }
     if (Test-Path -Path $outputFile) {
-        Write-Host "INFO:Folder Path Succeesfully"
-        Write-Host "ERROR:Video has been downloaded"
-        return 4
+        Write-Host "INFO:文件夹路径完整"
+        Write-Host "ERROR:视频已下载"
+        return "INFO:下载视频结束"
     }
     Write-Host "INFO:Download file:" $outputFile
     Start-BitsTransfer -Source $downloadURL -Destination $outputFile
-    return "INFO:Download video function finished"
+    return "INFO:下载视频结束"
 }
 
 function downloadALlPage {
-    param (
+    [CmdletBinding()]param (
         [String] $chromeCookies,
         [System.DateTime] $lastTime,
         [String] $uri,
@@ -195,6 +232,7 @@ function downloadALlPage {
         [String] $output
     )
     
+    Write-Host "INFO:开始下载全部页面"
     $request = getWebPage -uri $uri -chromeCookies $chromeCookies
     $page = 1
     while (!($request.Content -notmatch '<a title="次のページへ"')) {
@@ -207,18 +245,19 @@ function downloadALlPage {
         $page += 1
         $downloadPageError = downloadAllPageVideos -request $request -type $type -lastTime $lastTime -chromeCookies $chromeCookies -output $output
         if (($downloadPageError -eq 1) -and ($type -eq "Subscriptions")) {
+            Write-Host "INFO:下载全部页面结束"
             return 1
         }
         $request = getWebPage -uri $nextURL -chromeCookies $chromeCookies
     }
     Write-Host "end:"
     downloadAllPageVideos -request $request -type $type -lastTime $lastTime -chromeCookies $chromeCookies -output $output
-    return "INFO:Download all pages function finished"
+    return "INFO:下载全部页面结束"
 
 }
 
 function downloadSubscriptions {
-    Param (
+    [CmdletBinding()]Param (
         [String] $chromeCookies,
         [System.DateTime] $lastTime,
         [String] $uri,
@@ -226,7 +265,7 @@ function downloadSubscriptions {
     )
     $type = "Subscriptions"
     $downloadError = downloadALlPage -chromeCookies $chromeCookies -lastTime $lastTime -uri $uri -output $output -type $type
-    if ($downloadError -eq 0) {
+    if ($downloadError -eq "INFO:Download all pages function finished") {
         $newDate = Get-Date
         $newDate = $newDate.AddDays(-1)
         Out-File -FilePath .\LastDate.txt -InputObject $newDate.ToString("yyyy-MM-dd")
@@ -235,7 +274,7 @@ function downloadSubscriptions {
 }
 
 function downloadFromUsers {
-    param (
+    [CmdletBinding()]param (
         [String] $chromeCookies,
         [System.DateTime] $lastTime,
         [String] $uri,
