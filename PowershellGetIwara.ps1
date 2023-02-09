@@ -1,9 +1,12 @@
-﻿# cookie和UserAgent变量
-$chromeCookies = ''
+﻿[CmdletBinding()]
+param(
+    [Stirng]$chromeCookies
+)
+# 填自己的
 $userAgent = ''
 
 $uri = "https://ecchi.iwara.tv/subscriptions"
-
+$IWARA_HOME = "https://ecchi.iwara.tv"
 function getWebPage {
     param (
         [String] $chromeCookies,
@@ -22,15 +25,25 @@ function getWebPage {
     return $request
 }
 
+function infoRegex {
+    param (
+        [String] $inputStr,
+        [String] $regexStr
+    )
+    foreach ($match in [System.Text.RegularExpressions.Regex]::Matches($inputStr,$regexStr)) {
+        return $match.Value
+    }
+}
+
 function downloadVideo {
     Param (
         [Microsoft.PowerShell.Commands.HtmlWebResponseObject] $request
     )
 
-    [System.Collections.ArrayList]$videoArray = 'a', 'b'
+    $videoArray = @()
     foreach ($link in $request.Links.href) {
         if (($link -like '/videos/*') -and ($link -notin $videoArray)) {
-            $videoURL = "https://ecchi.iwara.tv" + $link
+            $videoURL = $IWARA_HOME + $link
             $videoArray.add($link)
             Write-Host $videoURL
             # yt-dlp命令
@@ -42,12 +55,12 @@ function downloadVideo {
 
 $request = getWebPage -chromeCookies $chromeCookies -uri $uri
 $page = 1
-while ($request.Content -notmatch '<li class="pager-next last">&nbsp;</li>') {
+while (!($request.Content -notmatch '<a title="次のページへ"')) {
     Write-Host '===================================================================================================================='
     Write-Host ' '
     Write-Host $nextURL
     Write-Host ("Page = " + $page.ToString())
-    $nextURL = ("https://ecchi.iwara.tv/subscriptions?page=" + $page.ToString())
+    $nextURL = $IWARA_HOME + (infoRegex -inputStr $request.content -regexStr '(?<=<a title="次のページへ" href=").*(?=">)')
     $page += 1
     downloadVideo -request $request
     $request = getWebPage -chromeCookies $chromeCookies -uri $nextURL
