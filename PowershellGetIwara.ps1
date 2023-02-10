@@ -1,14 +1,14 @@
 ﻿[CmdletBinding()]
 param (
-    [String] $CHROME_COOKIES,
+    [String] $cookies,
     [String] $uri,
-    [String] $OUTPUT
+    [String] $output
 )
 $IWARA_HOME = "https://ecchi.iwara.tv"
 # 变量
-# $CHROME_COOKIES = ''
+$CHROME_COOKIES = $cookies
 $USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
-# $OUTPUT = 
+$OUTPUT = $output
 # $uri = 
 
 if ($OUTPUT[-1] -ne "\") {
@@ -249,7 +249,7 @@ function downloadALlPage {
         $nextURL = $IWARA_HOME + (infoRegex -inputStr $request.content -regexStr '(?<=<a title="次のページへ" href=").*(?=">)')
         $page += 1
         $downloadPageError = downloadAllPageVideos -request $request -type $type -lastTime $lastTime -chromeCookies $chromeCookies -output $output
-        if (($downloadPageError -eq 1) -and ($type -eq "Subscriptions")) {
+        if ($downloadPageError -eq 1) {
             Write-Host "INFO:下载全部页面结束"
             return 1
         }
@@ -270,7 +270,7 @@ function downloadSubscriptions {
     )
     $type = "Subscriptions"
     $downloadError = downloadALlPage -chromeCookies $chromeCookies -lastTime $lastTime -uri $uri -output $output -type $type
-    if ($downloadError -eq "INFO:Download all pages function finished") {
+    if ($downloadError -eq 1) {
         $newDate = Get-Date
         $newDate = $newDate.AddDays(-1)
         Out-File -FilePath .\LastDate.txt -InputObject $newDate.ToString("yyyy-MM-dd")
