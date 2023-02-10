@@ -50,7 +50,7 @@ function downloadAllPageVideos {
             $videoArray += $link
             Write-Host $link
             $downloadError = downloadVideo -uri $link -chromeCookies $chromeCookies -type $type -lastDate $lastTime -output $output
-            if ($downloadError -eq 3) {
+            if ($downloadError -eq 4) {
                 Write-Host "INFO:下载单页全部视频结束"
                 return 1
             }
@@ -171,26 +171,31 @@ function downloadVideo {
         $videoUri += $uriParts[-1]
     } else {
         Write-Host "ERROR:Not a video"
-        return "INFO:下载视频结束"
+        Write-Host "INFO:下载视频结束"
+        return 1
     }
     Write-Host $videoUri
     $info = getVideoinfo -uri $uri -chromeCookies $chromeCookies
     if ($info -eq 1) {
         Write-Host "ERROR:Private video"
-        return "INFO:下载视频结束"
+        Write-Host "INFO:下载视频结束"
+        return 2
     } elseif ($info -eq 2) {
         Write-Host "ERROR:页面无内容"
-        return "INFO:下载视频结束"
+        Write-Host "INFO:下载视频结束"
+        return 3
     } elseif (($type -eq "Subscriptions") -and ([System.DateTime]::Compare($info["date"], $lastDate) -lt 0)) {
         Write-Host "ERROR:日期比规定日期早"
-        return "INFO:下载视频结束"
+        Write-Host "INFO:下载视频结束"
+        return 4
     }
     $apiURI = "https://ecchi.iwara.tv/api/video/" + $uriParts[-1]
     Write-Host "INFO:开始获取api网页"
     $request = getRequest -uri $apiURI
     if ($request -eq 1) {
         Write-Host "ERROR:获取api页面失败"
-        return "INFO:下载视频结束"
+        Write-Host "INFO:下载视频结束"
+        return 5
     }
     $jsonArray = (ConvertFrom-Json -InputObject $request.Content)
     $downloadURL = "https:"
