@@ -207,6 +207,11 @@ function downloadVideo {
             break
         }
     }
+    if ($downloadURL -eq "https:") {
+        Write-Host "ERROR:视频正在处理，无法下载"
+        Write-Host "INFO:下载视频结束"
+        return 6
+    }
     # 输出到作者名文件夹
     Write-Host $info["title"]
     $folderName = stringToFileName -str $info["userName"]
